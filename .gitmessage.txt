@@ -1,0 +1,53 @@
+## gitmessage
+# 🧵 Commit Convention :: Gitmoji Style
+# 제목 (한 줄 요약)
+# 형식: <이모지> <타입>: <변경 사항 요약>
+# 예: ✨ feat: 상품 리스트 페이지 추가
+
+# 본문 (변경 사항 상세 설명)
+# - 변경한 이유, 구현 내용, 의도 등을 설명합니다.
+# - 여러 줄 작성 가능하며, 각 줄은 72자 이내로 유지합니다.
+# - 필요시 관련 이슈를 언급합니다. 예: Fixes #123
+
+# 푸터 (선택 사항)
+# - 추가적인 메모, 참고 사항, Breaking Changes 등을 기재합니다.
+# - 예: BREAKING CHANGE: Django 버전 5.2 이상에서만 호환됨
+
+# ───────────────────────────────
+# Commit Title Type 목록 (Gitmoji 기반)
+# ───────────────────────────────
+# ✨ feat       : 새로운 기능 추가
+# 🐛 fix        : 버그 수정
+# 💡 chore      : 자잘한 코드 수정 (주석, 포맷 등)
+# 📝 docs       : 문서 수정 (README 등)
+# 🚚 build      : 빌드 시스템, 패키지 관련 수정
+# ✅ test       : 테스트 코드 추가/수정
+# ♻️ refactor   : 코드 리팩터링 (기능 변화 없음)
+# 🚑 hotfix     : 긴급 수정 (배포 중 발생한 문제 등)
+# ⚙️ ci         : CI/CD 관련 변경 (GitHub Actions 등)
+# 🔧 config     : 설정 파일 수정 (env, settings.py 등)
+# 🗑️ remove     : 불필요 파일/코드 삭제
+# 🔒 security   : 보안 관련 수정
+# 🚀 deploy     : 배포 관련 커밋
+# 🧩 style      : 코드 스타일 변경 (공백, 들여쓰기 등)
+# 🎨 ui         : UI, 스타일 관련 변경 (템플릿, CSS 등)
+# 🔄 sync       : 코드/데이터 동기화
+# 🔥 clean      : 코드/로그 정리
+# 🧠 perf       : 성능 개선 (쿼리 최적화 등)
+
+# ───────────────────────────────
+# 커밋 예시
+# ───────────────────────────────
+# ✨ feat(products): 상품 상세페이지 추가
+# - Bootstrap 기반의 product_detail.html 추가
+# - views.py에서 Product 더미데이터 연결
+# Fixes #12
+#
+# 🐛 fix(orders): 결제 시 가격 합계 오류 수정
+# - discount 로직이 잘못된 부분 수정
+#
+# 📝 docs: README.md에 실행 가이드 추가
+#
+# ♻️ refactor(models): Product 모델 구조 단순화
+#
+# 🚑 hotfix: main.html 렌더링 오류 긴급 수정
