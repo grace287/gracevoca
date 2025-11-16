@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class AddWordPage extends StatefulWidget {
   @override
@@ -28,6 +29,7 @@ class _AddWordPageState extends State<AddWordPage> {
   List<String> recommendedWords = [];
 
   final player = AudioPlayer();
+  final FlutterTts flutterTts = FlutterTts();
 
   // ----------------------------
   // 1. FREE Dictionary API
@@ -85,22 +87,19 @@ class _AddWordPageState extends State<AddWordPage> {
   }
 
   // ----------------------------
-  // 2. 무료 한국어 번역 API
+  // 2. 무료 한국어 번역 API (MyMemory)
   // ----------------------------
   Future<String> translateToKorean(String text) async {
     try {
-      final resp = await http.post(
-        Uri.parse("https://libretranslate.com/translate"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "q": text,
-          "source": "en",
-          "target": "ko"
-        }),
-      );
+      final encodedText = Uri.encodeComponent(text);
+      final url = "https://api.mymemory.translated.net/get?q=$encodedText&langpair=en|ko";
+      final resp = await http.get(Uri.parse(url));
 
-      final json = jsonDecode(resp.body);
-      return json["translatedText"] ?? "번역 실패";
+      if (resp.statusCode == 200) {
+        final json = jsonDecode(resp.body);
+        return json["responseData"]["translatedText"] ?? "번역 실패";
+      }
+      return "번역 실패";
     } catch (_) {
       return "번역 실패";
     }
@@ -137,7 +136,7 @@ class _AddWordPageState extends State<AddWordPage> {
   }
 
   // ----------------------------
-  // 발음 재생
+  // 발음 재생 (오디오 파일)
   // ----------------------------
   Future<void> playAudio(String url) async {
     try {
@@ -145,6 +144,20 @@ class _AddWordPageState extends State<AddWordPage> {
       await player.play();
     } catch (e) {
       print("Audio Error: $e");
+    }
+  }
+
+  // ----------------------------
+  // TTS 발음 재생
+  // ----------------------------
+  Future<void> speakWord(String word) async {
+    try {
+      await flutterTts.setLanguage("en-US");
+      await flutterTts.setPitch(1.0);
+      await flutterTts.setSpeechRate(0.5);
+      await flutterTts.speak(word);
+    } catch (e) {
+      print("TTS Error: $e");
     }
   }
 
@@ -166,6 +179,7 @@ class _AddWordPageState extends State<AddWordPage> {
   @override
   void dispose() {
     player.dispose();
+    flutterTts.stop();
     super.dispose();
   }
 
@@ -177,73 +191,147 @@ class _AddWordPageState extends State<AddWordPage> {
     return Scaffold(
       backgroundColor: Color(0xFFF5F0FF),
       appBar: AppBar(
-        title: Text("단어 추가"),
+        title: Text("단어 추가", style: TextStyle(fontWeight: FontWeight.w600)),
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _searchInput(),
           SizedBox(height: 20),
-          if (audioSources.isNotEmpty) _audioSection(),
+          if (audioSources.isNotEmpty || wordController.text.isNotEmpty) _audioSection(),
           if (phonetic.isNotEmpty) _phoneticSection(),
           _meaningSection(),
           if (posList.isNotEmpty) _posSection(),
           if (examples.isNotEmpty) _exampleSection(),
           _formsSection(),
           if (recommendedWords.isNotEmpty) _recommendedSection(),
-          SizedBox(height: 25),
+          SizedBox(height: 30),
           _saveButton(context),
+          SizedBox(height: 20),
         ]),
       ),
     );
   }
 
   Widget _searchInput() {
-    return TextField(
-      controller: wordController,
-      decoration: InputDecoration(
-        labelText: "단어 입력",
-        filled: true,
-        fillColor: Colors.white,
-        suffixIcon: isLoading
-            ? Padding(
-                padding: EdgeInsets.all(12),
-                child: CircularProgressIndicator(
-                  color: Colors.deepPurple,
-                  strokeWidth: 2,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withOpacity(0.1),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: wordController,
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          labelText: "영어 단어 입력",
+          labelStyle: TextStyle(color: Colors.deepPurple.shade300),
+          filled: true,
+          fillColor: Colors.transparent,
+          prefixIcon: Icon(Icons.search, color: Colors.deepPurple),
+          suffixIcon: isLoading
+              ? Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(
+                    color: Colors.deepPurple,
+                    strokeWidth: 2,
+                  ),
+                )
+              : IconButton(
+                  icon: Icon(Icons.auto_awesome, color: Colors.deepPurple),
+                  onPressed: () {
+                    if (wordController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("단어를 입력해주세요")),
+                      );
+                      return;
+                    }
+                    fetchWordDetails(wordController.text.trim());
+                  },
                 ),
-              )
-            : IconButton(
-                icon: Icon(Icons.search),
-                onPressed: () => fetchWordDetails(wordController.text.trim()),
-              ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.deepPurple, width: 2),
+          ),
+        ),
+        onSubmitted: (value) {
+          if (value.trim().isNotEmpty) {
+            fetchWordDetails(value.trim());
+          }
+        },
       ),
     );
   }
 
   Widget _audioSection() {
-    return Row(
-      children: [
-        Icon(Icons.volume_up, color: Colors.deepPurple),
-        SizedBox(width: 10),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple,
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: _cardStyle(),
+      child: Row(
+        children: [
+          Icon(Icons.volume_up, color: Colors.deepPurple, size: 28),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("발음 듣기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                SizedBox(height: 4),
+                Text("오디오 또는 TTS로 발음을 확인하세요", style: TextStyle(fontSize: 12, color: Colors.black54)),
+              ],
+            ),
           ),
-          onPressed: () => playAudio(audioSources.first),
-          child: Text("발음 재생"),
-        ),
-      ],
+          SizedBox(width: 8),
+          if (audioSources.isNotEmpty)
+            IconButton.filled(
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.deepPurple.shade100,
+              ),
+              icon: Icon(Icons.audiotrack, color: Colors.deepPurple),
+              onPressed: () => playAudio(audioSources.first),
+            ),
+          SizedBox(width: 8),
+          IconButton.filled(
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.green.shade100,
+            ),
+            icon: Icon(Icons.record_voice_over, color: Colors.green.shade700),
+            onPressed: () => speakWord(wordController.text.trim()),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _phoneticSection() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: Text("🔤 [ $phonetic ]", style: TextStyle(fontSize: 18)),
+    return Container(
+      margin: EdgeInsets.only(top: 12),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Row(
+        children: [
+          Text("🔤", style: TextStyle(fontSize: 20)),
+          SizedBox(width: 10),
+          Text("[ $phonetic ]", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
   }
 
@@ -251,15 +339,29 @@ class _AddWordPageState extends State<AddWordPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("📌 한국어 뜻",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        SizedBox(height: 16),
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.translate, color: Colors.deepPurple, size: 20),
+            ),
+            SizedBox(width: 10),
+            Text("한국어 뜻", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        SizedBox(height: 10),
         Container(
+          width: double.infinity,
           padding: EdgeInsets.all(18),
-          margin: EdgeInsets.only(top: 8),
           decoration: _cardStyle(),
           child: Text(
             meaningKo.text.isEmpty ? "자동으로 불러옵니다." : meaningKo.text,
-            style: TextStyle(fontSize: 16),
+            style: TextStyle(fontSize: 16, height: 1.5),
           ),
         )
       ],
@@ -271,11 +373,25 @@ class _AddWordPageState extends State<AddWordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(height: 20),
-        Text("📚 품사", style: TextStyle(fontSize: 17)),
+        Row(
+          children: [
+            Text("📚", style: TextStyle(fontSize: 20)),
+            SizedBox(width: 8),
+            Text("품사", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        SizedBox(height: 10),
         Wrap(
           spacing: 8,
-          children:
-              posList.map((p) => Chip(label: Text(p), backgroundColor: Colors.deepPurple.shade100)).toList(),
+          runSpacing: 8,
+          children: posList.map((p) => Container(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.shade100,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(p, style: TextStyle(fontWeight: FontWeight.w500)),
+          )).toList(),
         )
       ],
     );
@@ -286,15 +402,37 @@ class _AddWordPageState extends State<AddWordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(height: 20),
-        Text("✏ 예문", style: TextStyle(fontSize: 17)),
-        SizedBox(height: 8),
+        Row(
+          children: [
+            Text("✏️", style: TextStyle(fontSize: 20)),
+            SizedBox(width: 8),
+            Text("예문", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        SizedBox(height: 10),
         Column(
           children: examples.take(3).map((e) {
             return Container(
-              padding: EdgeInsets.all(14),
-              margin: EdgeInsets.only(bottom: 10),
-              decoration: _cardStyle(),
-              child: Text(e),
+              padding: EdgeInsets.all(16),
+              margin: EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.deepPurple.shade100),
+                boxShadow: [
+                  BoxShadow(blurRadius: 4, color: Colors.black.withOpacity(0.05), offset: Offset(0, 2)),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.format_quote, color: Colors.deepPurple.shade300, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(e, style: TextStyle(fontSize: 15, height: 1.5)),
+                  ),
+                ],
+              ),
             );
           }).toList(),
         ),
@@ -303,31 +441,56 @@ class _AddWordPageState extends State<AddWordPage> {
   }
 
   Widget _formsSection() {
+    if (nounForms.isEmpty && verbForms.isEmpty && adjForms.isEmpty && advForms.isEmpty) {
+      return SizedBox.shrink();
+    }
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(height: 20),
-        Text("🔗 형태 변화", style: TextStyle(fontSize: 17)),
+        Row(
+          children: [
+            Text("🔗", style: TextStyle(fontSize: 20)),
+            SizedBox(width: 8),
+            Text("형태 변화", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          ],
+        ),
 
-        if (nounForms.isNotEmpty) _formItem("명사형", nounForms),
-        if (verbForms.isNotEmpty) _formItem("동사형", verbForms),
-        if (adjForms.isNotEmpty) _formItem("형용사형", adjForms),
-        if (advForms.isNotEmpty) _formItem("부사형", advForms),
+        if (nounForms.isNotEmpty) _formItem("명사형", nounForms, Colors.blue),
+        if (verbForms.isNotEmpty) _formItem("동사형", verbForms, Colors.green),
+        if (adjForms.isNotEmpty) _formItem("형용사형", adjForms, Colors.orange),
+        if (advForms.isNotEmpty) _formItem("부사형", advForms, Colors.purple),
       ],
     );
   }
 
-  Widget _formItem(String title, List<String> list) {
+  Widget _formItem(String title, List<String> list, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: 12),
-        Text("• $title", style: TextStyle(fontSize: 15)),
+        SizedBox(height: 14),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+        ),
+        SizedBox(height: 8),
         Wrap(
           spacing: 8,
-          children: list
-              .map((w) => Chip(label: Text(w), backgroundColor: Colors.deepPurple.shade50))
-              .toList(),
+          runSpacing: 8,
+          children: list.map((w) => Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Text(w, style: TextStyle(fontSize: 14)),
+          )).toList(),
         )
       ],
     );
@@ -338,36 +501,107 @@ class _AddWordPageState extends State<AddWordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(height: 25),
-        Text("✨ 추천 단어",
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          children: recommendedWords
-              .map((w) =>
-                  Chip(label: Text(w), backgroundColor: Colors.deepPurple.shade50))
-              .toList(),
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.deepPurple.shade50, Colors.blue.shade50],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text("✨", style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 8),
+                  Text("추천 단어", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: recommendedWords.map((w) => InkWell(
+                  onTap: () {
+                    wordController.text = w;
+                    fetchWordDetails(w);
+                  },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(blurRadius: 4, color: Colors.black.withOpacity(0.1), offset: Offset(0, 2)),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(w, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                        SizedBox(width: 4),
+                        Icon(Icons.touch_app, size: 14, color: Colors.deepPurple),
+                      ],
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
   Widget _saveButton(BuildContext context) {
-    return ElevatedButton(
-      onPressed: () {
-        Navigator.pop(context, {
-          "word": wordController.text,
-          "meaning": meaningKo.text,
-          "examples": examples,
-        });
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.deepPurple,
-        minimumSize: Size(double.infinity, 52),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.deepPurple, Colors.deepPurple.shade700],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withOpacity(0.4),
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
       ),
-      child: Text("저장하기", style: TextStyle(fontSize: 18)),
+      child: ElevatedButton(
+        onPressed: () {
+          if (wordController.text.trim().isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("단어를 입력해주세요")),
+            );
+            return;
+          }
+          Navigator.pop(context, {
+            "word": wordController.text,
+            "meaning": meaningKo.text,
+            "examples": examples,
+            "phonetic": phonetic,
+          });
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          minimumSize: Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.save, size: 22),
+            SizedBox(width: 8),
+            Text("저장하기", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
     );
   }
 
