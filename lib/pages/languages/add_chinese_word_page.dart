@@ -66,9 +66,31 @@ class _AddChineseWordPageState extends State<AddChineseWordPage> {
         if (englishMeaning.isNotEmpty) {
           String koreanMeaning = await _translateToKorean(englishMeaning);
           meanings.clear();
+          
+          // 간체/번체 판별 (간단한 로직, 더 정확하려면 API 필요)
+          String simplified = word;
+          String traditional = word;
+          
+          // 한자 범위 체크로 간체/번체 구분 시도
+          // 번체는 간체보다 획이 많은 특성이 있음 (실제 구분은 복잡함)
+          try {
+            // 간체와 번체의 몇 가지 차이 예시
+            Map<String, String> conversionMap = {
+              '爱': '愛', '国': '國', '学': '學', '认': '認', '为': '為', 
+              '们': '們', '个': '個', '对': '對', '来': '來', '要': '要',
+              '只': '隻', '可': '可', '主': '主', '样': '樣'
+            };
+            if (conversionMap.containsKey(word)) {
+              simplified = word;
+              traditional = conversionMap[word]!;
+            }
+          } catch (e) {
+            // 변환 실패시 동일하게 처리
+          }
+          
           meanings.add({
-            "simplified": word,
-            "traditional": word,
+            "simplified": simplified,
+            "traditional": traditional,
             "pinyin": "[발음]",
             "english": englishMeaning,
             "korean": koreanMeaning
@@ -322,7 +344,10 @@ class _AddChineseWordPageState extends State<AddChineseWordPage> {
                 "word": wordController.text.trim(),
                 "meaning": meaningController.text.trim(),
                 "language": "chinese",
-                "notebook": selectedNotebook
+                "notebook": selectedNotebook ?? '기본 단어장',
+                "simplified": meanings.isNotEmpty ? meanings.first['simplified'] : wordController.text.trim(),
+                "traditional": meanings.isNotEmpty ? meanings.first['traditional'] : wordController.text.trim(),
+                "pinyin": meanings.isNotEmpty ? meanings.first['pinyin'] : '[발음]'
               });
             },
             style: ElevatedButton.styleFrom(

@@ -470,7 +470,7 @@ class _AddEnglishWordPageState extends State<AddEnglishWordPage> {
             "phonetic": phonetic,
             "example": examples.isNotEmpty ? examples.first : null,
             "examples": examples,
-            "notebook": selectedNotebook,
+            "notebook": selectedNotebook ?? '기본 단어장',
           });
         },
         style: ElevatedButton.styleFrom(

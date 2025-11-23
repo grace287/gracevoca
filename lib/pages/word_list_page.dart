@@ -345,8 +345,8 @@ class _WordListPageState extends State<WordListPage>
 
     if (result != null && result is Map<String, dynamic>) {
       // 언어별 AddWordPage에서 반환된 Map을 Word 객체로 변환
-      String wordLanguage = result['language'] ?? language;
-      String notebookName = result['notebook'] ?? _selectedNotebook ?? '기본 단어장';
+      String wordLanguage = (result['language'] ?? language).toString();
+      String notebookName = (result['notebook'] ?? _selectedNotebook ?? '기본 단어장').toString();
       
       // 해당 언어의 단어장 목록에 없으면 기본 단어장 사용
       if (!notebooksByLanguage.containsKey(wordLanguage)) {

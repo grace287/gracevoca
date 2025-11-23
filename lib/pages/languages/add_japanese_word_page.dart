@@ -337,7 +337,9 @@ class _AddJapaneseWordPageState extends State<AddJapaneseWordPage> {
                 "word": wordController.text.trim(),
                 "meaning": meaningController.text.trim(),
                 "language": "japanese",
-                "notebook": selectedNotebook
+                "notebook": selectedNotebook ?? '기본 단어장',
+                "kanji": meanings.isNotEmpty ? meanings.first['kanji'] : '',
+                "hiragana": meanings.isNotEmpty ? meanings.first['hiragana'] : ''
               });
             },
             style: ElevatedButton.styleFrom(
